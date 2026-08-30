@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Phone, Satellite, TriangleAlert } from "lucide-react";
+import { Loader2, MapPin, Phone, Satellite, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
 
 import { Panel } from "@/components/ui/Panel";
-import { sendSos } from "@/lib/api";
+import { reverseGeocode, sendSos } from "@/lib/api";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import type { SosDispatch } from "@/lib/types";
+import type { GeoPoint, SosDispatch } from "@/lib/types";
 
 const HOLD_MS = 2000;
 
@@ -23,18 +24,35 @@ export default function SosPage() {
   const [progress, setProgress] = useState(0);
   const [dispatch, setDispatch] = useState<SosDispatch | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [locating, setLocating] = useState(false);
+  const [placeLabel, setPlaceLabel] = useState<string | null>(null);
   const raf = useRef<number | null>(null);
   const start = useRef(0);
 
-  // Position is requested on arrival — in an emergency, no one taps "locate".
-  useEffect(() => {
-    if (userPoint || !navigator.geolocation) return;
+  const locate = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (p) => setUserPoint({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => {},
-      { enableHighAccuracy: true, timeout: 9000 },
+      (p) => {
+        const pt = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setUserPoint(pt);
+        setLocating(false);
+        void reverseGeocode(pt).then((label) => {
+          if (label) setPlaceLabel(label);
+        });
+      },
+      (err) => {
+        setLocating(false);
+        console.warn("Geolocation prompt skipped or denied:", err.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
-  }, [userPoint, setUserPoint]);
+  }, [setUserPoint]);
+
+  // Request position on arrival
+  useEffect(() => {
+    if (!userPoint) locate();
+  }, [userPoint, locate]);
 
   useEffect(() => {
     if (!dispatch) return;
@@ -43,14 +61,27 @@ export default function SosPage() {
   }, [dispatch]);
 
   const fire = useCallback(async () => {
-    const d = await sendSos(userPoint, online);
+    let currentPoint = userPoint;
+    if (!currentPoint && navigator.geolocation) {
+      try {
+        const p = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000, enableHighAccuracy: true })
+        );
+        currentPoint = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setUserPoint(currentPoint);
+      } catch {
+        // Fallback gracefully to default
+      }
+    }
+    const d = await sendSos(currentPoint, online);
     setDispatch(d);
     setElapsed(0);
     if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
-  }, [userPoint, online]);
+  }, [userPoint, online, setUserPoint]);
 
   const begin = useCallback(() => {
     if (dispatch) return;
+    if (!userPoint) locate();
     start.current = performance.now();
     const tick = (t: number) => {
       const p = Math.min(1, (t - start.current) / HOLD_MS);
@@ -59,7 +90,7 @@ export default function SosPage() {
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
-  }, [dispatch, fire]);
+  }, [dispatch, userPoint, locate, fire]);
 
   const cancel = useCallback(() => {
     if (raf.current) cancelAnimationFrame(raf.current);
@@ -118,9 +149,27 @@ export default function SosPage() {
                   </span>
                 </span>
               </button>
+              {/* GPS status readout */}
+              <div className="mt-6 flex flex-col items-center gap-1.5">
+                <div className="inline-flex items-center gap-2 rounded-full border border-hairline/50 bg-slate-2/60 px-4 py-1.5 backdrop-blur-sm">
+                  <MapPin className={cn("h-3.5 w-3.5", userPoint ? "text-clear animate-pulse" : locating ? "text-glacier animate-spin" : "text-caution")} />
+                  {locating ? (
+                    <span className="font-mono text-xs text-ash">Acquiring GPS position…</span>
+                  ) : userPoint ? (
+                    <span className="font-mono text-xs text-bone">
+                      GPS Locked: {userPoint.lat.toFixed(4)}, {userPoint.lng.toFixed(4)}
+                      {placeLabel ? ` (${placeLabel})` : ""}
+                    </span>
+                  ) : (
+                    <button onClick={locate} className="font-mono text-xs text-signal underline underline-offset-2">
+                      GPS Not Locked — Click to Enable
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div className="mt-14">
+            <div className="mt-10">
               <span className="eyebrow">Or call directly</span>
               <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                 {HELPLINES.map((h) => (
