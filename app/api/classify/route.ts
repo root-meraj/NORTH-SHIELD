@@ -18,11 +18,16 @@ function synthDistribution(kind: string, confidence: number) {
     .sort((a, b) => b.p - a.p);
 }
 
-export async function GET() {
-  let targetUrl = process.env.AI_API_URL || process.env.NEXT_PUBLIC_AI_API_URL || "https://northshield-ml.onrender.com";
-  if (!targetUrl || targetUrl.includes("127.0.0.1") || targetUrl.includes("localhost")) {
-    targetUrl = "https://northshield-ml.onrender.com";
+function getRenderUrl(): string {
+  let u = process.env.AI_API_URL || process.env.NEXT_PUBLIC_AI_API_URL || "https://northshield-ml.onrender.com";
+  if (!u || u.includes("127.0.0.1") || u.includes("localhost") || u.includes("northshield-ai")) {
+    u = "https://northshield-ml.onrender.com";
   }
+  return u;
+}
+
+export async function GET() {
+  const targetUrl = getRenderUrl();
   try {
     const res = await fetch(targetUrl);
     const text = await res.text();
@@ -43,11 +48,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
-    // Resolve target AI backend URL (prevent localhost/127.0.0.1 from failing in cloud deployments)
-    let targetUrl = process.env.AI_API_URL || process.env.NEXT_PUBLIC_AI_API_URL || "https://northshield-ml.onrender.com";
-    if (!targetUrl || targetUrl.includes("127.0.0.1") || targetUrl.includes("localhost")) {
-      targetUrl = "https://northshield-ml.onrender.com";
-    }
+    const targetUrl = getRenderUrl();
 
     if (targetUrl) {
       try {
