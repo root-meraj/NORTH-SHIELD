@@ -7,6 +7,7 @@ const AI_KIND_MAP: Record<string, string> = {
   flooded_road: "flood",
   obstruction: "road_damage",
   clear_road: "congestion",
+  unverified_scene: "road_damage",
 };
 
 function synthDistribution(kind: string, confidence: number) {
