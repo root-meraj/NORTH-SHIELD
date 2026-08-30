@@ -18,6 +18,20 @@ function synthDistribution(kind: string, confidence: number) {
     .sort((a, b) => b.p - a.p);
 }
 
+export async function GET() {
+  let targetUrl = process.env.AI_API_URL || process.env.NEXT_PUBLIC_AI_API_URL || "https://northshield-ml.onrender.com";
+  if (!targetUrl || targetUrl.includes("127.0.0.1") || targetUrl.includes("localhost")) {
+    targetUrl = "https://northshield-ml.onrender.com";
+  }
+  try {
+    const res = await fetch(targetUrl);
+    const text = await res.text();
+    return NextResponse.json({ targetUrl, status: res.status, body: text });
+  } catch (e: any) {
+    return NextResponse.json({ targetUrl, error: e?.message || String(e) }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -94,9 +108,12 @@ export async function POST(request: Request) {
               advisory: d.recommended_action || "IMPASSABLE: Close corridor. Divert to Alternate Route B.",
             });
           }
+        } else {
+          const errText = await res.text();
+          console.error(`AI engine returned HTTP ${res.status}:`, errText);
         }
       } catch (err) {
-        console.warn("Upstream AI engine call failed or timed out, using fallback classifier:", err);
+        console.error("Upstream AI engine call failed or timed out:", err);
       }
     }
 
