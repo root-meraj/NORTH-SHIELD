@@ -1,0 +1,218 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================
+   NORTHSHIELD — Design tokens
+   Direction: "Geological Survey". Wet-slate ground, contour-line
+   structure, signal-orange as the one loud voice. Everything else
+   stays quiet so the terrain reads first.
+   ========================================================= */
+
+:root {
+  /* Ground — wet slate, cooled with green. Never pure black. */
+  --ns-ink:        12 20 22;      /* #0C1416 page ground              */
+  --ns-slate:      19 30 32;      /* #131E20 raised panel             */
+  --ns-slate-2:    26 40 43;      /* #1A282B hover / nested panel     */
+  --ns-hairline:   47 79 71;      /* #2F4F47 contour line, borders    */
+
+  /* Type */
+  --ns-bone:      233 238 236;    /* #E9EEEC primary text             */
+  --ns-ash:       138 158 155;    /* #8A9E9B secondary text           */
+  --ns-faint:      92 112 110;    /* #5C706E tertiary / axis labels   */
+
+  /* Signal — survey markers, hazard tape, rescue gear.
+     This is the ONLY loud color. Use it for the single most
+     important action in any given view. Never twice in one card. */
+  --ns-signal:    255 107  53;    /* #FF6B35                          */
+
+  /* Status — earth-derived, not neon */
+  --ns-clear:     127 176 105;    /* #7FB069 lichen — passable        */
+  --ns-caution:   233 180  76;    /* #E9B44C ochre — degraded         */
+  --ns-blocked:   214  40  40;    /* #D62828 — impassable             */
+  --ns-glacier:    91 192 190;    /* #5BC0BE — model output, telemetry*/
+
+  --ns-radius:    14px;
+}
+
+@layer base {
+  * { @apply border-hairline/40; }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-ink text-bone antialiased;
+    font-feature-settings: "cv11", "ss01";
+    /* Faint contour wash so the ground never reads as flat black */
+    background-image:
+      radial-gradient(1200px 600px at 15% -10%, rgb(47 79 71 / 0.22), transparent 60%),
+      radial-gradient(900px 500px at 95% 5%, rgb(91 192 190 / 0.07), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  /* Survey-marker focus ring. Visible, square-ish, unmistakable. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--ns-signal));
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  ::selection { background: rgb(var(--ns-signal) / 0.3); }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: rgb(var(--ns-ink)); }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--ns-hairline));
+    border-radius: 99px;
+    border: 3px solid rgb(var(--ns-ink));
+  }
+}
+
+@layer components {
+  /* ---- Panel: the base surface. Hairline, not shadow. ---- */
+  .panel {
+    @apply relative rounded-[--ns-radius] border border-hairline/50 bg-slate/70 backdrop-blur-xl;
+  }
+
+  /* Contour texture for panels that represent terrain */
+  .panel-contour::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image: repeating-radial-gradient(
+      circle at 80% 120%,
+      rgb(47 79 71 / 0.35) 0px,
+      rgb(47 79 71 / 0.35) 1px,
+      transparent 1px,
+      transparent 22px
+    );
+    mask-image: linear-gradient(to top left, black, transparent 70%);
+  }
+
+  /* ---- Eyebrow: survey sheet label. Encodes section, not decoration. ---- */
+  .eyebrow {
+    @apply font-mono text-[10px] uppercase tracking-[0.22em] text-faint;
+  }
+
+  /* ---- Readout: any number the operator acts on ---- */
+  .readout {
+    @apply font-mono tabular-nums tracking-tight;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Hairline divider with a survey tick ---- */
+  .rule {
+    @apply h-px w-full bg-gradient-to-r from-hairline/70 via-hairline/25 to-transparent;
+  }
+
+  /* ---- The one loud button. Max one per view. ---- */
+  .btn-signal {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-signal px-5 py-3
+           font-medium text-ink transition-all duration-200
+           hover:brightness-110 active:scale-[0.985]
+           disabled:opacity-40 disabled:pointer-events-none;
+    box-shadow: 0 0 0 1px rgb(var(--ns-signal) / 0.5), 0 8px 30px -12px rgb(var(--ns-signal) / 0.7);
+  }
+
+  .btn-quiet {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px] border border-hairline/70
+           bg-slate-2/60 px-5 py-3 font-medium text-bone transition-colors duration-200
+           hover:bg-slate-2 hover:border-hairline;
+  }
+
+  /* ---- Status pill ---- */
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1
+           font-mono text-[10px] uppercase tracking-[0.14em];
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .text-pretty  { text-wrap: pretty; }
+
+  /* Type scale — set once, used everywhere. Display is Bricolage. */
+  .t-display {
+    font-family: var(--font-display);
+    @apply font-semibold leading-[0.94] tracking-[-0.035em];
+  }
+  .t-hero  { @apply t-display text-[clamp(2.5rem,8vw,5.75rem)]; }
+  .t-h1    { @apply t-display text-[clamp(1.9rem,4.5vw,3rem)]; }
+  .t-h2    { @apply t-display text-[clamp(1.35rem,2.6vw,1.85rem)]; }
+}
+
+/* ---- Motion. One orchestrated arrival, nothing scattered. ---- */
+@keyframes ns-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes ns-ping {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  70%  { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+@keyframes ns-draw   { to { stroke-dashoffset: 0; } }
+@keyframes ns-crawl  { to { stroke-dashoffset: -1000; } }
+@keyframes ns-sweep  { 0%,100% { opacity: 0.15; } 50% { opacity: 0.45; } }
+/* Ambient parallax on the contour field — 40 units of travel, half either
+   way, so the ridges never expose their own edges. */
+@keyframes ns-drift  { from { transform: translateX(-20px); } to { transform: translateX(20px); } }
+/* Indeterminate: the model does not report progress, so neither do we. */
+@keyframes ns-progress { from { transform: translateX(-100%); } to { transform: translateX(400%); } }
+
+.a-rise  { animation: ns-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.a-ping  { animation: ns-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
+.a-crawl { stroke-dasharray: 10 8; animation: ns-crawl 22s linear infinite; }
+.a-sweep { animation: ns-sweep 6s ease-in-out infinite; }
+.a-progress { animation: ns-progress 1.1s ease-in-out infinite; }
+
+/* Declared only under no-preference: the blanket reduce rule below would
+   still land this one on its end frame, leaving a permanent 20px offset. */
+@media (prefers-reduced-motion: no-preference) {
+  .a-drift { animation: ns-drift 30s ease-in-out infinite alternate; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Leaflet overrides: make it ours, not theirs ---- */
+.leaflet-container {
+  background: rgb(var(--ns-ink)) !important;
+  font-family: var(--font-sans) !important;
+}
+/* The basemap is a light OSM raster pulled into our ground. Filtering the
+   tiles only — not the container — keeps routes, markers and popups at
+   their true token colours. */
+/* !important because leaflet.css loads after this file and sets
+   `.leaflet-tile { filter: inherit }`, which would win on equal specificity. */
+.leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.86) contrast(1.05) saturate(0.55) !important;
+}
+.leaflet-control-zoom a {
+  background: rgb(var(--ns-slate)) !important;
+  color: rgb(var(--ns-bone)) !important;
+  border-color: rgb(var(--ns-hairline) / 0.6) !important;
+}
+.leaflet-control-attribution {
+  background: rgb(var(--ns-ink) / 0.75) !important;
+  color: rgb(var(--ns-faint)) !important;
+  font-size: 9px !important;
+}
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: rgb(var(--ns-slate)) !important;
+  color: rgb(var(--ns-bone)) !important;
+  border: 1px solid rgb(var(--ns-hairline) / 0.6);
+  border-radius: 10px !important;
+}
