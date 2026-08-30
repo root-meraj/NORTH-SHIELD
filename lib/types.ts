@@ -91,6 +91,9 @@ export interface ClassificationResult {
   accessibility?: string;
   /** One-line logistics recommendation from the engine. */
   advisory?: string;
+  /** Flag when an image is not a recognizable road/terrain photo */
+  unclassifiable?: boolean;
+  reason?: string;
 }
 
 export interface ScenarioInput {

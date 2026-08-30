@@ -267,7 +267,19 @@ export default function ReportPage() {
               </div>
             ) : (
               <>
-                {modelFailed ? (
+                {result?.unclassifiable ? (
+                  <div className="rounded-[10px] border border-caution/40 bg-caution/10 p-4">
+                    <span className="font-mono text-xs font-semibold uppercase tracking-wider text-caution">
+                      ⚠️ Not Classifiable as Road Hazard
+                    </span>
+                    <p className="mt-2 text-sm leading-relaxed text-bone">
+                      {result.reason || "This image does not appear to be an outdoor road or terrain scene (detected screenshot or indoor capture)."}
+                    </p>
+                    <p className="mt-2 text-xs text-ash">
+                      Please select the incident category and severity manually below.
+                    </p>
+                  </div>
+                ) : modelFailed ? (
                   <div className="rounded-[10px] border border-hairline/60 p-4">
                     <span className="eyebrow">Model unavailable</span>
                     <p className="mt-2 text-sm leading-relaxed text-bone">
@@ -289,7 +301,7 @@ export default function ReportPage() {
                   </>
                 )}
 
-                {result?.advisory && (
+                {!result?.unclassifiable && result?.advisory && (
                   <div className="mt-4 rounded-[10px] border border-glacier/25 bg-glacier/6 p-4">
                     <span className="eyebrow text-glacier">Terrain risk engine</span>
                     <p className="mt-1.5 text-sm leading-relaxed text-bone">{result.advisory}</p>
@@ -301,7 +313,7 @@ export default function ReportPage() {
                   </div>
                 )}
 
-                {result && (
+                {!result?.unclassifiable && result && result.distribution.length > 0 && (
                   <ul className="mt-5 flex flex-col gap-2">
                     {result.distribution.slice(0, 4).map((d) => (
                       <li key={d.kind} className="grid grid-cols-[7.5rem_1fr_2.6rem] items-center gap-3">
