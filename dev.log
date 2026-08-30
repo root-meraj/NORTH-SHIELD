@@ -1,0 +1,85 @@
+
+> northshield@1.0.0 dev
+> next dev
+
+▲ Next.js 16.3.3 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.192.1:3000
+- Environments: .env.local
+✓ Ready in 745ms
+✓ Running next.config.mjs took 24ms
+- Experiments (use with caution):
+  · optimizePackageImports
+
+ POST /api/notify 502 in 1562ms (next.js: 490ms, application-code: 1071ms)
+  Reload env: .env.local
+ GET / 200 in 1258ms (next.js: 706ms, application-code: 552ms)
+[browser] Uncaught Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <SegmentViewNode type="page" pagePath="page.tsx">
+      <SegmentTrieNode>
+      <Home>
+        <section>
+        <section className="mx-auto ma...">
+          <header>
+          <div className="grid gap-5...">
+            <IncidentFeed>
+              <Panel contour={true} className="overflow-h...">
+                <div className="panel pane...">
+                  <PanelHead>
+                  <ul className="divide-y d...">
+                    <Row inc={{id:"INC-4412", ...}} index={0} expanded={false} onToggle={function onToggle}>
+                      <li className="a-rise" style={{...}}>
+                        <button onClick={function onToggle} aria-expanded={false} className="flex w-ful...">
+                          <span>
+                          <span className="min-w-0 fl...">
+                            <span>
+                            <span className="mt-1.5 fle...">
+                              <span>
+                              <span>
+                              <span>
++                               5 min ago
+-                               4 min ago
+                              ...
+                          ...
+                    ...
+            ...
+          ...
+        ...
+    ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at span (<anonymous>)
+    at Row (components/ui/IncidentFeed.tsx:83:13)
+    at <unknown> (components/ui/IncidentFeed.tsx:46:13)
+    at Array.map (<anonymous>)
+    at IncidentFeed (components/ui/IncidentFeed.tsx:45:22)
+    at Home (app\page.tsx:122:11)
+  81 |             <span>{inc.district}</span>
+  82 |             <span aria-hidden>·</span>
+> 83 |             <span>{ago(inc.reportedAt)}</span>
+     |             ^
+  84 |             <span aria-hidden>·</span>
+  85 |             <span className="inline-flex items-center gap-1">
+  86 |               <SIcon className="h-3 w-3" strokeWidth={2} />
+ GET /dashboard 200 in 529ms (next.js: 232ms, application-code: 297ms)
+[browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+ GET /map 200 in 248ms (next.js: 179ms, application-code: 69ms)
+ GET /predictions 200 in 274ms (next.js: 212ms, application-code: 63ms)
+ GET /report 200 in 188ms (next.js: 116ms, application-code: 72ms)
+ GET /sos 200 in 168ms (next.js: 118ms, application-code: 50ms)
+ POST /api/notify 200 in 198ms (next.js: 133ms, application-code: 65ms)
+ GET /dashboard 200 in 223ms (next.js: 44ms, application-code: 179ms)
+ GET / 200 in 125ms (next.js: 60ms, application-code: 65ms)
+[?25h

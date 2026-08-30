@@ -18,6 +18,13 @@ import type {
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 const USE_MOCK = !API;
 
+/**
+ * The trained YOLO vision + terrain risk engine (FastAPI, model_files/api.py).
+ * Set independently of NEXT_PUBLIC_API_URL so the photo-report flow can go live
+ * against the real model while routes / scenario / SOS stay on mock data.
+ */
+const AI_API = process.env.NEXT_PUBLIC_AI_API_URL ?? "";
+
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function post<T>(path: string, body: unknown, mock: () => T | Promise<T>, delay = 700): Promise<T> {
@@ -100,12 +107,31 @@ function elevationFor(path: GeoPoint[], totalKm: number, hazardAt: number[]) {
   });
 }
 
-/** POST /api/route { from, to } -> { direct, recommended } */
+/**
+ * POST /api/route { from, to } -> { direct, recommended }
+ * Hits the Next route handler (real OpenRouteService routing); on any
+ * failure — no key, ORS down, offline — falls back to the local mock so
+ * the map always draws something.
+ */
 export async function planRoute(fromName: string, toName: string): Promise<RouteResult> {
-  return post<RouteResult>(
-    "/api/route",
-    { from: fromName, to: toName },
-    () => {
+  try {
+    const res = await fetch("/api/route", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from: fromName, to: toName }),
+    });
+    if (res.ok) return (await res.json()) as RouteResult;
+    if (res.status === 400) throw new Error((await res.json()).error || "Bad route request");
+    console.warn("Routing service unavailable, using mock route:", res.status);
+  } catch (e) {
+    if (e instanceof Error && !e.message.includes("fetch")) throw e;
+    console.warn("Routing service unreachable, using mock route");
+  }
+  await wait(300);
+  return mockRoute(fromName, toName);
+}
+
+function mockRoute(fromName: string, toName: string): RouteResult {
       const a = PLACES[fromName];
       const b = PLACES[toName];
       if (!a || !b) throw new Error(`Unknown place. Pick from the list.`);
@@ -146,17 +172,85 @@ export async function planRoute(fromName: string, toName: string): Promise<Route
       };
 
       return { direct, recommended };
-    },
-    900,
-  );
 }
 
 /* ---------------------------------------------------------- */
 /* Image classification — friend's trained CNN goes here       */
 /* ---------------------------------------------------------- */
 
-/** POST /api/classify (multipart: image, lat, lng) */
+/** Maps the AI engine's incident label onto the app's incident taxonomy. */
+const AI_KIND_MAP: Record<string, IncidentKind> = {
+  landslide_debris: "landslide",
+  flooded_road: "flood",
+  obstruction: "road_damage",
+  clear_road: "congestion",
+};
+
+interface AnalyzeResponse {
+  success: boolean;
+  error?: string;
+  data?: {
+    incident: string;            // e.g. "LANDSLIDE DEBRIS"
+    confidence: string;          // e.g. "91.4%"
+    risk_level: "LOW" | "MEDIUM" | "HIGH";
+    risk_score: number;
+    accessibility_score: string; // e.g. "45/100"
+    recommended_action: string;
+  };
+}
+
+/** Turn the engine's single verdict into a plausible full distribution for the UI. */
+function synthDistribution(kind: IncidentKind, confidence: number) {
+  const all: IncidentKind[] = ["landslide", "flood", "road_damage", "congestion"];
+  const rest = Math.max(0, (1 - confidence) / (all.length - 1));
+  return all
+    .map((k) => ({ kind: k, p: k === kind ? confidence : rest }))
+    .sort((a, b) => b.p - a.p);
+}
+
+/**
+ * POST /analyze on the FastAPI AI engine (multipart: image, lat, lon).
+ * Falls back to POST /api/classify on the generic API, then to mock data.
+ */
 export async function classifyIncident(file: File, at: GeoPoint | null): Promise<ClassificationResult> {
+  if (AI_API) {
+    const fd = new FormData();
+    fd.append("image", file);
+    if (at) {
+      fd.append("lat", String(at.lat));
+      fd.append("lon", String(at.lng));
+    }
+    const res = await fetch(`${AI_API}/analyze`, { method: "POST", body: fd });
+    if (!res.ok) throw new Error("AI engine did not respond. Set the type manually.");
+    const body = (await res.json()) as AnalyzeResponse;
+    if (!body.success || !body.data) throw new Error(body.error || "AI engine could not read the photo.");
+
+    const d = body.data;
+    const label = d.incident.toLowerCase().replace(/ /g, "_"); // "LANDSLIDE DEBRIS" -> "landslide_debris"
+    const kind = AI_KIND_MAP[label] ?? "road_damage";
+    const confidence = Math.min(1, Math.max(0, (parseFloat(d.confidence) || 0) / 100));
+
+    const action = d.recommended_action.toUpperCase();
+    const severity: ClassificationResult["severity"] =
+      label === "clear_road" ? "clear"
+        : action.startsWith("IMPASSABLE") ? "blocked"
+          : action.startsWith("RESTRICTED") ? "caution"
+            : d.risk_level === "HIGH" ? "blocked"
+              : d.risk_level === "MEDIUM" ? "caution"
+                : "clear";
+
+    return {
+      kind,
+      confidence,
+      severity,
+      distribution: synthDistribution(kind, confidence),
+      riskLevel: d.risk_level,
+      riskScore: d.risk_score,
+      accessibility: d.accessibility_score,
+      advisory: d.recommended_action,
+    };
+  }
+
   if (!USE_MOCK) {
     const fd = new FormData();
     fd.append("image", file);
@@ -206,9 +300,107 @@ export async function submitReport(payload: {
   landmark: string;
   note: string;
 }): Promise<{ id: string }> {
-  return post("/api/incidents", payload, () => ({
+  const filed = await post<{ id: string }>("/api/incidents", payload, () => ({
     id: `INC-${Math.floor(4413 + Math.random() * 80)}`,
   }), 800);
+
+  // Push a Telegram alert for anything that degrades or closes a road.
+  // Fire-and-forget: a notify failure must never block the report.
+  if (payload.severity === "blocked" || payload.severity === "caution") {
+    const typeTag = payload.severity === "blocked" ? "road_blocked" : payload.kind;
+    const coordStr = payload.point
+      ? `📍 ${payload.point.lat.toFixed(5)}, ${payload.point.lng.toFixed(5)}`
+      : "📍 Location pending";
+    void sendTelegramAlert({
+      title: `${payload.kind.replace("_", " ").toUpperCase()} — ${payload.severity === "blocked" ? "ROAD BLOCKED" : "CAUTION"}`,
+      body: `${payload.landmark || "Location pending"}\n${coordStr}\nFiled as ${filed.id}${payload.note ? "\n" + payload.note : ""}`,
+      type: typeTag,
+    });
+  }
+
+  return filed;
+}
+
+/* ---------------------------------------------------------- */
+/* Telegram alert helper — usable from any client component    */
+/* ---------------------------------------------------------- */
+
+import { pushTelegramLog, updateTelegramLog } from "@/components/ui/TelegramAlertLog";
+
+/**
+ * Fire-and-forget Telegram alert through /api/notify.
+ * Also pushes entries to the visual TelegramAlertLog panel so judges
+ * can see real-time status without checking their phones.
+ */
+export async function sendTelegramAlert(payload: {
+  title: string;
+  body: string;
+  type?: string;
+}): Promise<{ sent?: number; skipped?: boolean; reason?: string }> {
+  const logId = pushTelegramLog({
+    type: payload.type ?? "default",
+    title: payload.title,
+    status: "sending",
+  });
+
+  try {
+    const res = await fetch("/api/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.sent && data.sent > 0) {
+      updateTelegramLog(logId, "sent");
+    } else if (data.skipped) {
+      updateTelegramLog(logId, "skipped");
+    } else {
+      updateTelegramLog(logId, "failed");
+    }
+    return data;
+  } catch {
+    updateTelegramLog(logId, "failed");
+    return { skipped: true, reason: "fetch failed" };
+  }
+}
+
+/* ---------------------------------------------------------- */
+/* Geocoding + live conditions (Next route handlers)          */
+/* ---------------------------------------------------------- */
+
+/** Free-text place -> coordinates. Nominatim, via /api/geocode. */
+export async function geocode(query: string): Promise<{ lat: number; lng: number; label: string } | null> {
+  try {
+    const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** Coordinates -> nearest place name. */
+export async function reverseGeocode(at: GeoPoint): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/geocode?lat=${at.lat}&lng=${at.lng}`);
+    if (!res.ok) return null;
+    return (await res.json()).label as string;
+  } catch {
+    return null;
+  }
+}
+
+/** Live rainfall / soil conditions for the predictions sliders. Open-Meteo, via /api/weather. */
+export async function fetchLiveConditions(
+  at: GeoPoint,
+): Promise<{ rainfall24hMm: number; rainfall7dMm: number; soilSaturationPct: number } | null> {
+  try {
+    const res = await fetch(`/api/weather?lat=${at.lat}&lng=${at.lng}`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 /* ---------------------------------------------------------- */
@@ -260,7 +452,7 @@ export function runScenario(input: ScenarioInput): ScenarioResult {
 
 /** POST /api/sos — cellular first, satellite fallback. */
 export async function sendSos(at: GeoPoint | null, online: boolean): Promise<SosDispatch> {
-  return post<SosDispatch>(
+  const dispatch = await post<SosDispatch>(
     "/api/sos",
     { at, online },
     () => ({
@@ -276,4 +468,17 @@ export async function sendSos(at: GeoPoint | null, online: boolean): Promise<Sos
     }),
     1200,
   );
+
+  // Fire Telegram SOS alert with coordinates and responding units
+  const coordStr = dispatch.point
+    ? `📍 ${dispatch.point.lat.toFixed(5)}, ${dispatch.point.lng.toFixed(5)}`
+    : "📍 Position unknown";
+  const unitList = dispatch.units.map((u) => `  • ${u.name} (${u.kind}) — ${u.etaMin === 0 ? "Notified" : u.etaMin + " min ETA"}`).join("\n");
+  void sendTelegramAlert({
+    title: `SOS DISTRESS — ${dispatch.id}`,
+    body: `Channel: ${dispatch.channel.toUpperCase()}\n${coordStr}\n\nResponding units:\n${unitList}`,
+    type: "sos",
+  });
+
+  return dispatch;
 }

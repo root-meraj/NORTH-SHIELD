@@ -84,6 +84,13 @@ export interface ClassificationResult {
   distribution: Array<{ kind: IncidentKind; p: number }>;
   /** Model's own severity read, which the reporter can override. */
   severity: Severity;
+  /** Terrain risk engine output — present only when the live AI engine answered. */
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  riskScore?: number;
+  /** e.g. "45/100" */
+  accessibility?: string;
+  /** One-line logistics recommendation from the engine. */
+  advisory?: string;
 }
 
 export interface ScenarioInput {

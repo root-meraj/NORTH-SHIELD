@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Camera, Check, ImagePlus, Loader2, MapPin, RotateCcw } from "lucide-react";
 
 import { Panel } from "@/components/ui/Panel";
-import { classifyIncident, submitReport } from "@/lib/api";
+import { classifyIncident, reverseGeocode, submitReport } from "@/lib/api";
 import { KIND_LABEL } from "@/lib/data";
 import { useApp } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -66,7 +66,15 @@ export default function ReportPage() {
     if (!navigator.geolocation) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (p) => { setPoint({ lat: p.coords.latitude, lng: p.coords.longitude }); setLocating(false); },
+      (p) => {
+        const at = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setPoint(at);
+        setLocating(false);
+        // Prefill the landmark from the map, but never clobber what the reporter typed.
+        void reverseGeocode(at).then((label) => {
+          if (label) setLandmark((cur) => cur || label);
+        });
+      },
       () => { setLocating(false); toast.error("Location blocked. Type a landmark instead."); },
       { enableHighAccuracy: true, timeout: 9000 },
     );
@@ -82,9 +90,10 @@ export default function ReportPage() {
       setResult(r);
       setKind(r.kind);
       setSeverity(r.severity);
-    } catch {
+    } catch (e) {
       // The report is the point, not the model. Keep the form usable.
-      toast.error("Photo could not be read. Set the type below and file it.");
+      const msg = e instanceof Error && e.message ? e.message : "Photo could not be read.";
+      toast.error(`${msg} Set the type below and file it.`);
       setResult(null);
       setModelFailed(true);
     } finally {
@@ -278,6 +287,18 @@ export default function ReportPage() {
                       )}
                     </p>
                   </>
+                )}
+
+                {result?.advisory && (
+                  <div className="mt-4 rounded-[10px] border border-glacier/25 bg-glacier/6 p-4">
+                    <span className="eyebrow text-glacier">Terrain risk engine</span>
+                    <p className="mt-1.5 text-sm leading-relaxed text-bone">{result.advisory}</p>
+                    {result.riskLevel && (
+                      <p className="readout mt-2 text-[11px] text-faint">
+                        Risk {result.riskLevel} ({result.riskScore}) · Accessibility {result.accessibility}
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {result && (

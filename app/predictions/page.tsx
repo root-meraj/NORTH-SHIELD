@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Brain } from "lucide-react";
+import { toast } from "sonner";
+import { Brain, CloudRain, Loader2 } from "lucide-react";
 
 import { Panel, PanelHead } from "@/components/ui/Panel";
 import RiskDial from "@/components/predictions/RiskDial";
-import { DISTRICTS, KIND_LABEL } from "@/lib/data";
-import { runScenario } from "@/lib/api";
+import { DISTRICTS, KIND_LABEL, PLACES } from "@/lib/data";
+import { fetchLiveConditions, runScenario } from "@/lib/api";
 import { SEV, cn, riskToSeverity } from "@/lib/utils";
 import type { ScenarioInput } from "@/lib/types";
 
@@ -22,6 +23,25 @@ export default function PredictionsPage() {
 
   const set = <K extends keyof ScenarioInput>(k: K, v: ScenarioInput[K]) =>
     setInput((s) => ({ ...s, [k]: v }));
+
+  const [loadingLive, setLoadingLive] = useState(false);
+  async function loadLive() {
+    const place = Object.values(PLACES).find((p) => p.district === input.district);
+    if (!place) return;
+    setLoadingLive(true);
+    const live = await fetchLiveConditions({ lat: place.lat, lng: place.lng });
+    setLoadingLive(false);
+    if (!live) {
+      toast.error("Could not fetch live conditions. Enter them by hand.");
+      return;
+    }
+    setInput((s) => ({
+      ...s,
+      rainfall24hMm: Math.min(500, live.rainfall24hMm),
+      soilSaturationPct: live.soilSaturationPct,
+    }));
+    toast.success(`Live: ${live.rainfall24hMm} mm next 24 h · ${live.rainfall7dMm} mm past week`);
+  }
 
   // Pure function of the inputs, so this stays instant as sliders move.
   const out = useMemo(() => runScenario(input), [input]);
@@ -40,7 +60,17 @@ export default function PredictionsPage() {
       <div className="mt-9 grid gap-5 lg:grid-cols-[380px_1fr]">
         {/* ---- Inputs ---- */}
         <Panel className="h-fit p-5 sm:p-6">
-          <span className="eyebrow">Conditions</span>
+          <div className="flex items-center justify-between gap-3">
+            <span className="eyebrow">Conditions</span>
+            <button
+              onClick={loadLive}
+              disabled={loadingLive}
+              className="inline-flex items-center gap-1.5 rounded-md border border-hairline/60 px-2.5 py-1 text-[11px] text-ash transition-colors hover:border-glacier/60 hover:text-glacier disabled:opacity-50"
+            >
+              {loadingLive ? <Loader2 className="h-3 w-3 animate-spin" /> : <CloudRain className="h-3 w-3" />}
+              Use live weather
+            </button>
+          </div>
 
           <div className="mt-4 flex flex-col gap-6">
             <div>

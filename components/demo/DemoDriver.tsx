@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 
-import { planRoute } from "@/lib/api";
+import { planRoute, sendTelegramAlert } from "@/lib/api";
 import { useApp } from "@/lib/store";
 
 /**
@@ -64,14 +64,46 @@ export default function DemoDriver() {
           title: "Landslide predicted on NH-6",
           body: "Sohra ascent scored 91. Convoy AS-01-KC-4482 has been rerouted.",
         });
+
+        // 🔔 TELEGRAM: Alert when convoy is rerouted away from danger
+        void sendTelegramAlert({
+          title: "Convoy AS-01-KC-4482 rerouted",
+          body: "Landslide risk on NH-6 Sohra ascent scored 91/100.\nConvoy carrying medical supplies rerouted via alternate corridor.\n📍 Guwahati → Silchar\n⏱️ +25 min added, but danger avoided.",
+          type: "reroute",
+        });
       });
 
-      timers.current = BEATS.map((b) =>
+      // 🔔 TELEGRAM: Alert when AI reads farmer's photo (beat 5, 26s)
+      timers.current.push(
         window.setTimeout(() => {
-          setDemo(true, b.caption);
-          if (b.go) router.push(b.go);
-        }, b.at),
+          void sendTelegramAlert({
+            title: "LANDSLIDE — road blocked",
+            body: "AI model detected landslide with 91.4% confidence.\n📍 NH-6, 4 km past Sohra viewpoint, Meghalaya\nDebris across both lanes. Water still coming down the slope.\nFiled as INC-4456",
+            type: "landslide",
+          });
+        }, 26000),
       );
+
+      // 🔔 TELEGRAM: High-risk prediction alert (beat 7, 40s)
+      timers.current.push(
+        window.setTimeout(() => {
+          void sendTelegramAlert({
+            title: "Composite risk crossed 80 — Pre-positioning ordered",
+            body: "Rainfall projection: 340mm in next 24h\nSoil saturation: 89%\nEast Khasi Hills district risk: 83/100\nPre-position relief stock at Sohra. Suspend non-essential movement.",
+            type: "prediction",
+          });
+        }, 40000),
+      );
+
+      timers.current = [
+        ...timers.current,
+        ...BEATS.map((b) =>
+          window.setTimeout(() => {
+            setDemo(true, b.caption);
+            if (b.go) router.push(b.go);
+          }, b.at),
+        ),
+      ];
       timers.current.push(
         window.setTimeout(() => {
           scheduled.current = false;

@@ -41,7 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       style={{ ["--font-sans" as string]: GeistSans.style.fontFamily, ["--font-mono" as string]: GeistMono.style.fontFamily }}
       suppressHydrationWarning
     >
-      <body className="min-h-dvh font-sans">
+      <body className="min-h-dvh font-sans" suppressHydrationWarning>
         {/* Skip link — keyboard users land here first */}
         <a
           href="#main"

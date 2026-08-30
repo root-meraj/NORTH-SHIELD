@@ -7,6 +7,7 @@ import CountUp from "@/components/ui/CountUp";
 import IncidentFeed from "@/components/ui/IncidentFeed";
 import CorridorTable from "@/components/ui/CorridorTable";
 import ConvoyBoard from "@/components/ui/ConvoyBoard";
+import TelegramAlertLog from "@/components/ui/TelegramAlertLog";
 import DemoLauncher from "@/components/demo/DemoLauncher";
 import { SEED_CORRIDORS } from "@/lib/data";
 
@@ -123,6 +124,11 @@ export default function Home() {
             <CorridorTable />
             <ConvoyBoard />
           </div>
+        </div>
+
+        {/* Telegram alert delivery log — visible during demo */}
+        <div className="mt-5">
+          <TelegramAlertLog />
         </div>
       </section>
 
