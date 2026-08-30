@@ -32,8 +32,10 @@ export async function POST(request: Request) {
     // Try calling the live Python YOLO AI engine
     if (AI_API) {
       try {
+        const arrayBuffer = await file.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: file.type || "image/jpeg" });
         const upstreamFd = new FormData();
-        upstreamFd.append("image", file);
+        upstreamFd.append("image", blob, file.name || "incident.jpg");
         upstreamFd.append("lat", lat);
         upstreamFd.append("lon", lon);
 
