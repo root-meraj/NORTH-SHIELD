@@ -433,9 +433,17 @@ export async function sendSos(at: GeoPoint | null, online: boolean): Promise<Sos
     1200,
   );
 
-  // Fire Telegram SOS alert with coordinates and responding units
+  // Look up place name for the real coordinates
+  let placeName = "";
+  if (dispatch.point) {
+    try {
+      placeName = (await reverseGeocode(dispatch.point)) || "";
+    } catch {}
+  }
+
+  // Fire Telegram SOS alert with coordinates, nearest place name, and responding units
   const coordStr = dispatch.point
-    ? `📍 ${dispatch.point.lat.toFixed(5)}, ${dispatch.point.lng.toFixed(5)}`
+    ? `📍 ${dispatch.point.lat.toFixed(5)}, ${dispatch.point.lng.toFixed(5)}${placeName ? `\n🏷️ ${placeName}` : ""}`
     : "📍 Position unknown";
   const unitList = dispatch.units.map((u) => `  • ${u.name} (${u.kind}) — ${u.etaMin === 0 ? "Notified" : u.etaMin + " min ETA"}`).join("\n");
   void sendTelegramAlert({

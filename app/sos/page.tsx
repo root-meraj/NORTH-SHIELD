@@ -28,14 +28,16 @@ export default function SosPage() {
   const [placeLabel, setPlaceLabel] = useState<string | null>(null);
   const raf = useRef<number | null>(null);
   const start = useRef(0);
-
   const locate = useCallback(() => {
-    if (!navigator.geolocation) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (p) => {
         const pt = { lat: p.coords.latitude, lng: p.coords.longitude };
         setUserPoint(pt);
+        try {
+          localStorage.setItem("northshield_gps", JSON.stringify(pt));
+        } catch {}
         setLocating(false);
         void reverseGeocode(pt).then((label) => {
           if (label) setPlaceLabel(label);
@@ -45,14 +47,26 @@ export default function SosPage() {
         setLocating(false);
         console.warn("Geolocation prompt skipped or denied:", err.message);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   }, [setUserPoint]);
 
-  // Request position on arrival
+  // Request position on arrival and read cached GPS if available
   useEffect(() => {
-    if (!userPoint) locate();
-  }, [userPoint, locate]);
+    try {
+      const saved = localStorage.getItem("northshield_gps");
+      if (saved) {
+        const pt = JSON.parse(saved);
+        if (pt && typeof pt.lat === "number" && typeof pt.lng === "number") {
+          setUserPoint(pt);
+          void reverseGeocode(pt).then((label) => {
+            if (label) setPlaceLabel(label);
+          });
+        }
+      }
+    } catch {}
+    locate();
+  }, [locate, setUserPoint]);
 
   useEffect(() => {
     if (!dispatch) return;

@@ -69,6 +69,9 @@ export default function ReportPage() {
       (p) => {
         const at = { lat: p.coords.latitude, lng: p.coords.longitude };
         setPoint(at);
+        try {
+          localStorage.setItem("northshield_gps", JSON.stringify(at));
+        } catch {}
         setLocating(false);
         // Prefill the landmark from the map, but never clobber what the reporter typed.
         void reverseGeocode(at).then((label) => {
