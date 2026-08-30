@@ -29,8 +29,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
-    // Try calling the live Python YOLO AI engine
-    if (AI_API) {
+    // Resolve target AI backend URL (prevent localhost/127.0.0.1 from failing in cloud deployments)
+    let targetUrl = process.env.AI_API_URL || process.env.NEXT_PUBLIC_AI_API_URL || "https://northshield-ml.onrender.com";
+    if (!targetUrl || targetUrl.includes("127.0.0.1") || targetUrl.includes("localhost")) {
+      targetUrl = "https://northshield-ml.onrender.com";
+    }
+
+    if (targetUrl) {
       try {
         const arrayBuffer = await file.arrayBuffer();
         const blob = new Blob([arrayBuffer], { type: file.type || "image/jpeg" });
@@ -42,7 +47,7 @@ export async function POST(request: Request) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-        const res = await fetch(`${AI_API.replace(/\/$/, "")}/analyze`, {
+        const res = await fetch(`${targetUrl.replace(/\/$/, "")}/analyze`, {
           method: "POST",
           body: upstreamFd,
           signal: controller.signal,
