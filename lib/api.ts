@@ -23,7 +23,7 @@ const USE_MOCK = !API;
  * Set independently of NEXT_PUBLIC_API_URL so the photo-report flow can go live
  * against the real model while routes / scenario / SOS stay on mock data.
  */
-const AI_API = process.env.NEXT_PUBLIC_AI_API_URL ?? "";
+const AI_API = process.env.NEXT_PUBLIC_AI_API_URL || "https://northshield-ml.onrender.com";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const AI_API = process.env.NEXT_PUBLIC_AI_API_URL || process.env.AI_API_URL || "http://127.0.0.1:8000";
+const AI_API = process.env.NEXT_PUBLIC_AI_API_URL || process.env.AI_API_URL || "https://northshield-ml.onrender.com";
 
 const AI_KIND_MAP: Record<string, string> = {
   landslide_debris: "landslide",
