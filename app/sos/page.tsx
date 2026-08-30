@@ -134,7 +134,7 @@ export default function SosPage() {
             </div>
 
             {/* Hold, not tap — an accidental brush should not dispatch NDRF. */}
-            <div className="mt-12 flex justify-center">
+            <div className="mt-12 flex flex-col items-center">
               <button
                 onPointerDown={begin}
                 onPointerUp={cancel}
@@ -142,7 +142,7 @@ export default function SosPage() {
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); begin(); } }}
                 onKeyUp={cancel}
                 aria-label="Hold for two seconds to send an SOS"
-                className="group relative flex h-56 w-56 select-none items-center justify-center rounded-full transition-transform active:scale-[0.97] sm:h-64 sm:w-64"
+                className="group relative flex h-56 w-56 shrink-0 aspect-square select-none items-center justify-center rounded-full transition-transform active:scale-[0.97] sm:h-64 sm:w-64"
                 style={{ touchAction: "none" }}
               >
                 <svg viewBox="0 0 200 200" className="absolute inset-0 -rotate-90">
@@ -163,16 +163,17 @@ export default function SosPage() {
                   </span>
                 </span>
               </button>
-              {/* GPS status readout */}
-              <div className="mt-6 flex flex-col items-center gap-1.5">
-                <div className="inline-flex items-center gap-2 rounded-full border border-hairline/50 bg-slate-2/60 px-4 py-1.5 backdrop-blur-sm">
-                  <MapPin className={cn("h-3.5 w-3.5", userPoint ? "text-clear animate-pulse" : locating ? "text-glacier animate-spin" : "text-caution")} />
+
+              {/* GPS status readout centered below */}
+              <div className="mt-8 flex max-w-lg flex-col items-center text-center">
+                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-hairline/50 bg-slate-2/60 px-4 py-2 backdrop-blur-sm">
+                  <MapPin className={cn("h-4 w-4 shrink-0", userPoint ? "text-clear animate-pulse" : locating ? "text-glacier animate-spin" : "text-caution")} />
                   {locating ? (
                     <span className="font-mono text-xs text-ash">Acquiring GPS position…</span>
                   ) : userPoint ? (
-                    <span className="font-mono text-xs text-bone">
-                      GPS Locked: {userPoint.lat.toFixed(4)}, {userPoint.lng.toFixed(4)}
-                      {placeLabel ? ` (${placeLabel})` : ""}
+                    <span className="font-mono text-xs leading-snug text-bone">
+                      GPS: {userPoint.lat.toFixed(4)}, {userPoint.lng.toFixed(4)}
+                      {placeLabel ? ` · ${placeLabel}` : ""}
                     </span>
                   ) : (
                     <button onClick={locate} className="font-mono text-xs text-signal underline underline-offset-2">

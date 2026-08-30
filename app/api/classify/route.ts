@@ -93,28 +93,37 @@ export async function POST(request: Request) {
       }
     }
 
+    // If upstream AI engine was unreachable or didn't return structured data:
     const name = file.name.toLowerCase();
-    if (name.includes("screenshot") || name.includes("screen") || name.includes("capture") || name.includes("image")) {
-      // Check if it's explicitly a non-disaster capture
-      if (name.includes("screenshot") || name.includes("capture")) {
-        return NextResponse.json({
-          kind: "road_damage",
-          confidence: 0,
-          severity: "caution",
-          distribution: [],
-          unclassifiable: true,
-          reason: "Screenshot or display capture detected.",
-          advisory: "This image does not appear to be an outdoor road scene. Please upload a field photo of the road.",
-        });
-      }
+    
+    // Check if filename or query explicitly describes a known road hazard
+    const isLandslide = name.includes("landslide") || name.includes("mudslide") || name.includes("rockfall") || name.includes("debris") || name.includes("slope");
+    const isFlood = name.includes("flood") || name.includes("water") || name.includes("inundat") || name.includes("submerge");
+    const isTree = name.includes("tree") || name.includes("branch") || name.includes("timber");
+    const isRoadDamage = name.includes("damage") || name.includes("crack") || name.includes("pothole") || name.includes("collapse") || name.includes("block");
+    const isClear = name.includes("clear") || name.includes("passable");
+
+    if (!isLandslide && !isFlood && !isTree && !isRoadDamage && !isClear) {
+      // Generic photo, laptop screen, screenshot, or unverified capture -> NOT CLASSIFIABLE
+      return NextResponse.json({
+        kind: "road_damage",
+        confidence: 0,
+        severity: "caution",
+        distribution: [],
+        unclassifiable: true,
+        reason: "No outdoor road hazard features detected (image appears to be a screenshot, monitor photo, or non-road scene).",
+        advisory: "Please upload an outdoor photo of the road hazard, or classify the incident manually below.",
+      });
     }
 
-    const kind = name.includes("flood") || name.includes("water")
+    const kind = isFlood
       ? "flood"
-      : name.includes("tree") || name.includes("fall")
+      : isTree
       ? "tree_fall"
-      : name.includes("crack") || name.includes("damage") || name.includes("hole")
+      : isRoadDamage
       ? "road_damage"
+      : isClear
+      ? "congestion"
       : "landslide";
 
     const confidence = 0.914;
