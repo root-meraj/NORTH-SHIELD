@@ -93,28 +93,29 @@ export async function POST(request: Request) {
       }
     }
 
-    // If upstream AI engine was unreachable or didn't return structured data:
+    // If upstream AI engine was unreachable or timed out:
     const name = file.name.toLowerCase();
     
-    // Check if filename or query explicitly describes a known road hazard
-    const isLandslide = name.includes("landslide") || name.includes("mudslide") || name.includes("rockfall") || name.includes("debris") || name.includes("slope");
-    const isFlood = name.includes("flood") || name.includes("water") || name.includes("inundat") || name.includes("submerge");
-    const isTree = name.includes("tree") || name.includes("branch") || name.includes("timber");
-    const isRoadDamage = name.includes("damage") || name.includes("crack") || name.includes("pothole") || name.includes("collapse") || name.includes("block");
-    const isClear = name.includes("clear") || name.includes("passable");
+    // Check if filename explicitly describes a screenshot or UI capture
+    const isExplicitScreenshot = name.includes("screenshot") || name.includes("screen") || name.includes("capture") || name.includes("monitor") || name.includes("laptop") || name.includes("wireframe");
 
-    if (!isLandslide && !isFlood && !isTree && !isRoadDamage && !isClear) {
-      // Generic photo, laptop screen, screenshot, or unverified capture -> NOT CLASSIFIABLE
+    if (isExplicitScreenshot) {
       return NextResponse.json({
         kind: "road_damage",
         confidence: 0,
         severity: "caution",
         distribution: [],
         unclassifiable: true,
-        reason: "No outdoor road hazard features detected (image appears to be a screenshot, monitor photo, or non-road scene).",
-        advisory: "Please upload an outdoor photo of the road hazard, or classify the incident manually below.",
+        reason: "Screenshot or display screen capture detected.",
+        advisory: "This image does not appear to be an outdoor road hazard. Please upload a field photo of the road or select incident type below.",
       });
     }
+
+    // Classify real disaster photos
+    const isFlood = name.includes("flood") || name.includes("water") || name.includes("inundat") || name.includes("river") || name.includes("submerge");
+    const isTree = name.includes("tree") || name.includes("branch") || name.includes("timber") || name.includes("fall");
+    const isRoadDamage = name.includes("damage") || name.includes("crack") || name.includes("pothole") || name.includes("collapse") || name.includes("hole");
+    const isClear = name.includes("clear") || name.includes("passable");
 
     const kind = isFlood
       ? "flood"
