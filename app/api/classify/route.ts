@@ -38,7 +38,7 @@ export async function POST(request: Request) {
         upstreamFd.append("lon", lon);
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
 
         const res = await fetch(`${AI_API.replace(/\/$/, "")}/analyze`, {
           method: "POST",
