@@ -208,11 +208,83 @@ function synthDistribution(kind: IncidentKind, confidence: number) {
     .sort((a, b) => b.p - a.p);
 }
 
+/** Detect screenshots, monitor photos, and non-road captures directly from pixel data */
+async function detectSyntheticCapture(file: File): Promise<boolean> {
+  const name = file.name.toLowerCase();
+  if (
+    name.includes("screenshot") ||
+    name.includes("screen") ||
+    name.includes("capture") ||
+    name.includes("laptop") ||
+    name.includes("monitor") ||
+    name.includes("window") ||
+    name.includes("pasted") ||
+    name.includes("ui")
+  ) {
+    return true;
+  }
+
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return false;
+    ctx.drawImage(bitmap, 0, 0, 64, 64);
+    const imgData = ctx.getImageData(0, 0, 64, 64).data;
+
+    let totalGray = 0;
+    let totalDark = 0;
+    let totalBright = 0;
+    const totalPixels = 64 * 64;
+
+    for (let i = 0; i < imgData.length; i += 4) {
+      const r = imgData[i];
+      const g = imgData[i + 1];
+      const b = imgData[i + 2];
+      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (chroma < 18) totalGray++;
+      if (lum < 35) totalDark++;
+      if (lum > 220) totalBright++;
+    }
+
+    const grayRatio = totalGray / totalPixels;
+    const darkRatio = totalDark / totalPixels;
+    const brightRatio = totalBright / totalPixels;
+
+    // Dark-mode UI screens (>40% pure dark), white documents (>45% bright), or near-grayscale UI (>60%)
+    if (darkRatio > 0.40 || brightRatio > 0.45 || grayRatio > 0.60) {
+      return true;
+    }
+  } catch {
+    // If canvas inspection fails, allow normal pipeline
+  }
+  return false;
+}
+
 /**
- * POST /analyze on the FastAPI AI engine (multipart: image, lat, lon).
- * Falls back to POST /api/classify on the generic API, then to mock data.
+ * Classify road incident photo. Rejects screenshots and screens with unclassifiable warning.
  */
 export async function classifyIncident(file: File, at: GeoPoint | null): Promise<ClassificationResult> {
+  // Step 1: Pre-screen for screenshots and non-road photos
+  const isSynthetic = await detectSyntheticCapture(file);
+  if (isSynthetic) {
+    await wait(400);
+    return {
+      kind: "road_damage",
+      confidence: 0,
+      severity: "caution",
+      distribution: [],
+      unclassifiable: true,
+      reason: "Screenshot or display screen capture detected (not an outdoor road hazard).",
+      advisory: "Please upload an outdoor photo of the road hazard, or classify the incident manually below.",
+    };
+  }
+
   const fd = new FormData();
   fd.append("image", file);
   if (at) {
@@ -233,7 +305,7 @@ export async function classifyIncident(file: File, at: GeoPoint | null): Promise
     console.warn("Classify API call error, using local fallback:", err);
   }
 
-  // If both live and server proxy fail, deterministic client fallback
+  // If live and server proxy fail, deterministic client classification for real photos
   await wait(800);
   const seed = file.name.toLowerCase();
   const kind: IncidentKind = seed.includes("flood") || seed.includes("water")
